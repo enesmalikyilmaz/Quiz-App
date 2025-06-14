@@ -53,7 +53,6 @@ quiz-app/
 |-----|----------|
 | Öğretmen | Quiz oluşturabilir |
 | Öğrenci | Quiz'e katılabilir |
-| Admin | Kullanıcı & quiz istatistiklerini görebilir |
 
 ---
 
