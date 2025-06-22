@@ -51,23 +51,21 @@ const activeGames = new Map();  // map türünde aktif oyunların listesi
 io.on('connection', (socket) => {
   console.log(' Yeni kullanıcı bağlandı:', socket.id);
 
-  // Bir kullanıcı quiz odasına katılır
   socket.on('joinQuiz', ({ quizId, username, totalQuestions }) => {
-    socket.join(quizId); // quizID'ye sahip quize girer
+    socket.join(quizId);
     console.log(`${username} quiz ${quizId} odasına katıldı.`);
 
-    if (!activeGames.has(quizId)) { // quizID'ye sahip bir oyun yoksa yeni oturum başlatılır
+    if (!activeGames.has(quizId)) {
       activeGames.set(quizId, {
         currentQuestion: 0,
         players: new Map(),
         scores: new Map(),
         quizEnded: false,
-        totalQuestions: totalQuestions || 5 // birşey girilmezse 5 soru
-        
+        totalQuestions: totalQuestions || 5
       });
     }
 
-    activeGames.get(quizId).players.set(socket.id, username); // Oyuncunun kim olduüu socket.id ü<erinden kaydedilir
+    activeGames.get(quizId).players.set(socket.id, username);
   });
 
   socket.on('startQuiz', ({ quizId }) => {
@@ -84,14 +82,13 @@ io.on('connection', (socket) => {
     io.to(quizId).emit('newQuestion', { questionIndex: game.currentQuestion });
   });
 
-  // Cevap gönderimi
-  socket.on('submitAnswer', async ({ quizId, isCorrect, userId }) => { //Quiz'in ID'si ve doğru olup olmadığı alınır
+  socket.on('submitAnswer', async ({ quizId, isCorrect, userId }) => {
     const game = activeGames.get(quizId);
     if (!game || game.quizEnded) return;
 
     const currentScore = game.scores.get(socket.id) || 0;
     const updatedScore = isCorrect ? currentScore + 10 : currentScore;
-    game.scores.set(socket.id, updatedScore); // Güncellenen skoru kaydet
+    game.scores.set(socket.id, updatedScore);
 
     io.to(quizId).emit('scoreUpdate', {
       scores: Array.from(game.scores.entries()).map(([id, score]) => ({
@@ -100,21 +97,30 @@ io.on('connection', (socket) => {
       }))
     });
 
-    if (game.currentQuestion >= game.totalQuestions - 1 && !game.quizEnded) {
-      game.quizEnded = true;
-      for (const [socketId, username] of game.players.entries()) {
-        const score = game.scores.get(socketId) || 0;
-        try {
-          await Result.create({ user: userId, quiz: quizId, score });
-        } catch (e) {
-          console.error('Sonuç kaydedilemedi:', e.message);
-        }
-      }
-    }
+    if (game.currentQuestion < game.totalQuestions - 1) {
+      setTimeout(() => {
+        game.currentQuestion++;
+        io.to(quizId).emit('newQuestion', { questionIndex: game.currentQuestion });
+      }, 2000);
+    } else if (!game.quizEnded) {
+      //  SON SORU — 2 saniye sonra quizEnded gönderilecek
+      setTimeout(async () => {
+        game.quizEnded = true;
 
+        for (const [socketId, username] of game.players.entries()) {
+          const score = game.scores.get(socketId) || 0;
+          try {
+            await Result.create({ user: userId, quiz: quizId, score });
+          } catch (e) {
+            console.error('Sonuç kaydedilemedi:', e.message);
+          }
+        }
+
+        io.to(quizId).emit('quizEnded');
+      }, 2000); // Son sorudan 2 saniye sonra yönlendirme yapılır
+    }
   });
 
-  // Kullanıcı ayrılırsa temizle
   socket.on('disconnect', () => {
     console.log(' Kullanıcı ayrıldı:', socket.id);
     for (const [quizId, game] of activeGames.entries()) {

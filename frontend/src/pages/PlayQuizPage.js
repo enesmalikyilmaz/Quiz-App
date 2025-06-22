@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import { listQuizzes } from '../services/api';
 
@@ -12,13 +13,16 @@ const PlayQuizPage = () => {
   const [selected, setSelected] = useState('');
   const [answered, setAnswered] = useState(false);
   const [scores, setScores] = useState([]);
+  const navigate = useNavigate();
+
 
   // Quiz bilgilerini getir
   useEffect(() => {
     const fetchQuiz = async () => {
       const res = await listQuizzes();
-      const quizList = res.data.quizzes; 
-      const found = res.data.find((q) => q._id === quizId);
+      const quizList = res.data.quizzes;
+      const found = quizList.find((q) => q._id === quizId);
+
       if (found) {
         setQuiz(found);
         socket.emit('joinQuiz', {
@@ -44,9 +48,16 @@ const PlayQuizPage = () => {
       setAnswered(false);
     });
 
+    socket.on('quizEnded', () => {
+      alert("Quiz bitti! Ana sayfaya yönlendiriliyorsunuz.");
+      navigate('/dashboard'); 
+    });
+
+
     return () => {
       socket.off('scoreUpdate');
       socket.off('newQuestion');
+
     };
   }, []);
 
